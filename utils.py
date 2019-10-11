@@ -1,22 +1,100 @@
-from IPython import display as ipythondisplay
 import matplotlib.pyplot as plt
+import numpy as np
+# import tensorflow as tf
 import time
+from IPython import display as ipythondisplay
+
+
+#####################################
+def custom_progress_text(message):
+	import progressbar
+	from string import Formatter
+
+	message_ = message.replace('(', '{')
+	message_ = message_.replace(')', '}')
+
+	keys = [key[1] for key in Formatter().parse(message_)]
+
+	ids = {}
+	for key in keys:
+		if key is not None:
+			ids[key] = float('nan')
+
+	msg = progressbar.FormatCustomText(message, ids)
+	return msg
+
+def create_progress_bar(text=None):
+	import progressbar
+	if text is None:
+		text = progressbar.FormatCustomText('')
+	bar = progressbar.ProgressBar(widgets=[
+			  progressbar.Percentage(),
+			  progressbar.Bar(),
+			  progressbar.AdaptiveETA(), '  ',
+			  text,
+	])
+	return bar
+
+def display_model(model):
+	tf.keras.utils.plot_model(model,
+		         to_file='tmp.png',
+		         show_shapes=True)
+	from IPython.display import Image
+	return Image('tmp.png')
+
+
+def plot_sample(x,y,vae):
+    plt.figure(figsize=(2,1))
+    plt.subplot(1, 2, 1)
+
+    idx = np.where(y.numpy()==1)[0][0]
+    plt.imshow(x[idx])
+    plt.grid(False)
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(vae(x)[idx])
+    plt.grid(False)
+
+    plt.show()
+
+
+def save_video_of_model(model, env_name, filename='agent.mp4'):  
+    import skvideo.io
+    from pyvirtualdisplay import Display
+    display = Display(visible=0, size=(40, 30))
+    display.start()
+
+    env = gym.make(env_name)
+    obs = env.reset()
+    shape = env.render(mode='rgb_array').shape[0:2]
+
+    out = skvideo.io.FFmpegWriter(filename)
+
+    done = False
+    while not done: 
+        frame = env.render(mode='rgb_array')
+        out.writeFrame(frame)
+
+        action = model(tf.convert_to_tensor(obs.reshape((1,-1)), tf.float32)).numpy().argmax()
+        obs, reward, done, info = env.step(action)
+    out.close()
+    print("Successfully saved into {}!".format(filename))
 
 
 class LossHistory:
 	def __init__(self, smoothing_factor=0.0):
 		self.alpha = smoothing_factor
 		self.loss = []
-
 	def append(self, value):
 		self.loss.append( self.alpha*self.loss[-1] + (1-self.alpha)*value if len(self.loss)>0 else value )
-
 	def get(self):
 		return self.loss
 
-
 class PeriodicPlotter:
 	def __init__(self, sec, xlabel='', ylabel='', scale=None):
+		from IPython import display as ipythondisplay
+		import matplotlib.pyplot as plt
+		import time
 
 		self.xlabel = xlabel
 		self.ylabel = ylabel
@@ -28,7 +106,7 @@ class PeriodicPlotter:
 	def plot(self, data):
 		if time.time() - self.tic > self.sec:
 			plt.cla()
-
+      
 			if self.scale is None:
 				plt.plot(data)
 			elif self.scale == 'semilogx':
